@@ -1,7 +1,7 @@
 from celery import Celery
 import time
 
-BROKER_URL = redis://:cverd6632@172.17.0.1:6379/0
+BROKER_URL = "redis://:cverd6632@172.17.0.1:6379/0"
 
 # 创建一个 Celery 实例
 app = Celery('schedule_sextent', broker=BROKER_URL)
