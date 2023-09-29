@@ -1,6 +1,12 @@
-from consumer import my_task
-from celery import Celery
+from consumer import trade_sextent_task
+from sextant_test_data import SextantTestData
+from sextant_parser import sextant_data_to_stats_list, sextant_data_to_db_key
 
-# 向 Celery 发送任务
-task = my_task.apply_async(args=[1])  # 发送任务到队列
-print(f'Task ID: {task.id}')
+if __name__ == "__main__":
+    # 使用測試資料
+    for data in SextantTestData:
+        statsList = sextant_data_to_stats_list(data)
+        dbKey = sextant_data_to_db_key(data)
+        # 向 Celery 发送任务
+        task = trade_sextent_task.apply_async(args=[statsList, dbKey])
+        print(f'Send Task ID: {task.id}')
