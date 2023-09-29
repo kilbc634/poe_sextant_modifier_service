@@ -18,6 +18,7 @@ RedisClient = redis.Redis(host=REDIS_HOST, port=6379, password=REDIS_AUTH, decod
 import json
 import datetime
 import time
+import traceback
 
 # 创建一个 Celery 实例
 worker = Celery('worker', broker=BROKER_URL)
@@ -29,44 +30,51 @@ worker.conf.task_routes = {
 
 @worker.task
 def trade_sextent_task(statsList, dbKey):
-    idsList = search_with_stats(statsList)
+    try:
+        idsList = search_with_stats(statsList)
 
-    if len(idsList) >= 10:
-        idsList = idsList[0:10]
-    itemsList = fetch_with_ids(idsList)
+        if len(idsList) >= 10:
+            idsList = idsList[0:10]
+        itemsList = fetch_with_ids(idsList)
 
-    # 取得價位資料
-    priceList = []
-    for item in itemsList:
-        amount = item['listing']['price']['amount']
-        currency = item['listing']['price']['currency']
-        priceList.append({
-            'amount': amount,
-            'currency': currency
-        })
+        # 取得價位資料
+        priceList = []
+        for item in itemsList:
+            amount = item['listing']['price']['amount']
+            currency = item['listing']['price']['currency']
+            priceList.append({
+                'amount': amount,
+                'currency': currency
+            })
 
-    logger.info('got price data --> {priceList}'.format(
+        logger.info('got price data --> {priceList}'.format(
             priceList=str(priceList)
-    ))
-    
-    currentUtcTime = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    RedisClient.lpush(dbKey, {
-        'price': priceList,
-        'updateTime': currentUtcTime
-    })
+        ))
+        
+        currentUtcTime = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        pushValue = json.dumps({
+            'price': priceList,
+            'updateTime': currentUtcTime
+        })
+        RedisClient.lpush(dbKey, pushValue)
 
-    logger.info('save price data for --> {dbKey}'.format(
+        logger.info('save price data in --> {dbKey}'.format(
             dbKey=dbKey
-    ))
+        ))
 
-    # trade搜尋間隔30s防止超過使用頻率
-    time.sleep(30)
+    except Exception as e:
+        logger.error('trade search ERROR')
+        logger.exception(e)
+
+    finally:
+        # trade搜尋間隔30s防止超過使用頻率
+        time.sleep(30)
 
 
 # 启动 Celery worker
 if __name__ == '__main__':
     current_directory = os.path.dirname(os.path.abspath(__file__))
-    command = 'celery -A "{application}" worker --loglevel=INFO'.format(
+    command = 'celery -A "{application}" worker -c 1 --loglevel=INFO'.format(
         application = os.path.basename(__file__).replace('.py', '')
     )
     process = subprocess.Popen(command, shell=True, cwd=current_directory)
