@@ -29,7 +29,7 @@ worker.conf.task_routes = {
 }
 
 @worker.task
-def trade_sextent_task(statsList, dbKey):
+def trade_sextant_task(statsList, dbKey):
     try:
         idsList = search_with_stats(statsList)
 

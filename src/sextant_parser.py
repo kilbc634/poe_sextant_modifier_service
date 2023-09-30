@@ -1,6 +1,7 @@
 import json
 import logging
 import traceback
+import openpyxl
 
 
 SEXTANT_USES_STAT_ID = 'enchant.stat_290368246'
@@ -105,6 +106,51 @@ def sextant_data_to_db_key(sextantData, full=True):
 
     return dbKey
 
+def get_sextant_data_from_excel(excelFile):
+    # 打开Excel文件
+    workbook = openpyxl.load_workbook(excelFile)
+    # 选择要操作的工作表（worksheet）
+    worksheet = workbook['工作表1']  # 替换成您的工作表名称
+
+    # 遍歷並解析工作表
+    sextantData = []
+    for row in worksheet.iter_rows(min_row=2, values_only=True):
+        sextant = row[0]
+        keyword = row[1]
+        stat = row[2]
+        value = row[3]
+        if sextant and keyword and stat:
+            sextantText = sextant.strip()
+
+            keyword = keyword.splitlines()
+            keywordList = [k.strip() for k in keyword]
+
+            stat = stat.splitlines()
+            statList = [s.strip() for s in stat]
+
+            if value:
+                value = value.splitlines()
+                valueList = [json.loads(v.strip()) for v in value]
+            else:
+                valueList = []
+
+            sextantData.append({
+                'sextant': sextantText,
+                'keyword': keywordList,
+                'stat': statList,
+                'value':valueList
+            })
+
+    # 关闭工作簿
+    workbook.close()
+
+    return sextantData
+
+
+if __name__ == "__main__":
+    sextantData = get_sextant_data_from_excel('sextant_mapping.xlsx')
+    print('\n\n')
+    print('[sextantData from Excel] = \n' + json.dumps(sextantData, indent=4))
 
 if __name__ == "__main__":
     from sextant_test_data import SextantTestData
