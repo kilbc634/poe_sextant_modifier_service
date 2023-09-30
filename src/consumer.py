@@ -2,6 +2,7 @@ from celery import Celery
 import time
 import sys 
 sys.path.append("..")
+from setting import *
 import logging
 logging.basicConfig(
     filename='app.log',
@@ -9,16 +10,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__file__)
-from setting import *
 import subprocess
 import os
 from sextant_trade_api import search_with_stats, fetch_with_ids
-import redis
-RedisClient = redis.Redis(host=REDIS_HOST, port=6379, password=REDIS_AUTH, decode_responses=True)
-import json
-import datetime
-import time
 import traceback
+from redis_lib import push_sextant_data
 
 # 创建一个 Celery 实例
 worker = Celery('worker', broker=BROKER_URL)
@@ -28,7 +24,7 @@ worker.conf.task_routes = {
     'trade*': {'queue': 'trade'}  # 指定任务队列
 }
 
-@worker.task
+@worker.task(unique=True)
 def trade_sextant_task(statsList, dbKey):
     try:
         idsList = search_with_stats(statsList)
@@ -51,12 +47,7 @@ def trade_sextant_task(statsList, dbKey):
             priceList=str(priceList)
         ))
         
-        currentUtcTime = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        pushValue = json.dumps({
-            'price': priceList,
-            'updateTime': currentUtcTime
-        })
-        RedisClient.lpush(dbKey, pushValue)
+        push_sextant_data(dbKey, priceList)
 
         logger.info('save price data in --> {dbKey}'.format(
             dbKey=dbKey
