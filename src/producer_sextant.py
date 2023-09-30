@@ -2,10 +2,12 @@ from consumer import trade_sextant_task
 from sextant_parser import sextant_data_to_stats_list, sextant_data_to_db_key, get_sextant_data_from_excel
 from redis_lib import get_sextant_latest_time
 from datetime import datetime, timedelta
+import os
 
 def run_schedule():
     # 從excel去load六分儀資料，並將資料解析成List格式
-    sextantData = get_sextant_data_from_excel('sextant_mapping.xlsx')
+    excelFile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sextant_mapping.xlsx')
+    sextantData = get_sextant_data_from_excel(excelFile)
     for data in sextantData:
         # 遍歷list，產出第N筆資料對應的 statsList,dbKey
         statsList = sextant_data_to_stats_list(data)
