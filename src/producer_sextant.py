@@ -31,6 +31,7 @@ def run_schedule():
 
 
         if doTask:
+            print('Send task for -> \n' + data['sextant'])
             task = trade_sextant_task.apply_async(args=[statsList, dbKey])
 
 
