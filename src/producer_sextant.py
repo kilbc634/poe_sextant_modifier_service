@@ -32,7 +32,7 @@ def run_schedule():
 
         if doTask:
             print('Send task for -> \n' + data['sextant'])
-            task = trade_sextant_task.apply_async(args=[statsList, dbKey])
+            task = trade_sextant_task.apply_async(args=[statsList, dbKey], queue='trade')
 
 
 if __name__ == "__main__":

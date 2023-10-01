@@ -1,3 +1,4 @@
 requests==2.31.0
 celery[redis]==5.3.4
 openpyxl==3.1.2
+flower==2.0.1

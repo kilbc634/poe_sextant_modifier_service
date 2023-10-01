@@ -19,10 +19,10 @@ from redis_lib import push_sextant_data
 # 创建一个 Celery 实例
 worker = Celery('worker', broker=BROKER_URL)
 
-# 配置 Celery
-worker.conf.task_routes = {
-    '*trade*': {'queue': 'trade'}  # 指定任务队列
-}
+# # 配置 Celery
+# worker.conf.task_routes = {
+#     '*trade*': {'queue': 'trade'}  # 指定任务队列
+# }
 
 @worker.task(unique=True)
 def trade_sextant_task(statsList, dbKey):
@@ -65,7 +65,7 @@ def trade_sextant_task(statsList, dbKey):
 # 启动 Celery worker
 if __name__ == '__main__':
     current_directory = os.path.dirname(os.path.abspath(__file__))
-    command = 'celery -A "{application}" worker --loglevel=INFO'.format(
+    command = 'celery -A "{application}" worker -Q trade --loglevel=INFO'.format(
         application = os.path.basename(__file__).replace('.py', '')
     )
     process = subprocess.Popen(command, shell=True, cwd=current_directory)
