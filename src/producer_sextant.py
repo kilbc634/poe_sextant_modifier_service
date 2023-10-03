@@ -1,6 +1,7 @@
 from consumer import trade_sextant_task
+from consumer import QueueTrade
 from sextant_parser import sextant_data_to_stats_list, sextant_data_to_db_key, get_sextant_data_from_excel
-from redis_lib import get_sextant_latest_time
+from redis_lib import get_sextant_latest_time, check_sextant_task_pending, set_sextant_task_pending
 from datetime import datetime, timedelta
 import os
 
@@ -12,6 +13,10 @@ def run_schedule():
         # 遍歷list，產出第N筆資料對應的 statsList,dbKey
         statsList = sextant_data_to_stats_list(data)
         dbKey = sextant_data_to_db_key(data)
+
+        # check該任務是否已經在queue，如果是那就直接skip
+        if check_sextant_task_pending(dbKey):
+            continue
 
         # 根據dbKey到DB取得最後更新時間
         latestTime = get_sextant_latest_time(dbKey)
@@ -31,8 +36,11 @@ def run_schedule():
 
 
         if doTask:
-            print('Send task for -> \n' + data['sextant'])
-            task = trade_sextant_task.apply_async(args=[statsList, dbKey], queue='trade')
+            task = trade_sextant_task.apply_async(args=[statsList, dbKey], queue=QueueTrade)
+            set_sextant_task_pending(dbKey, data={
+                'taskId': task['id']
+            })
+
 
 
 if __name__ == "__main__":

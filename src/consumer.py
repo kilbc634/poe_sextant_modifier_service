@@ -14,7 +14,7 @@ import subprocess
 import os
 from sextant_trade_api import search_with_stats, fetch_with_ids
 import traceback
-from redis_lib import push_sextant_data
+from redis_lib import push_sextant_data, del_sextant_task_pending
 
 # 创建一个 Celery 实例
 worker = Celery('worker', broker=BROKER_URL)
@@ -23,8 +23,9 @@ worker = Celery('worker', broker=BROKER_URL)
 # worker.conf.task_routes = {
 #     '*trade*': {'queue': 'trade'}  # 指定任务队列
 # }
+QueueTrade = 'trade'
 
-@worker.task(unique=True)
+@worker.task()
 def trade_sextant_task(statsList, dbKey):
     try:
         idsList = search_with_stats(statsList)
@@ -60,13 +61,16 @@ def trade_sextant_task(statsList, dbKey):
     finally:
         # trade搜尋間隔30s防止超過使用頻率
         time.sleep(30)
+        # 並清除pending狀態
+        del_sextant_task_pending(dbKey)
 
 
 # 启动 Celery worker
 if __name__ == '__main__':
     current_directory = os.path.dirname(os.path.abspath(__file__))
-    command = 'celery -A "{application}" worker -Q trade --loglevel=INFO'.format(
-        application = os.path.basename(__file__).replace('.py', '')
+    command = 'celery -A "{application}" worker -c 1 -Q {queue} --loglevel=DEBUG'.format(
+        application = os.path.basename(__file__).replace('.py', ''),
+        queue = QueueTrade
     )
     process = subprocess.Popen(command, shell=True, cwd=current_directory)
     try:
