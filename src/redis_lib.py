@@ -37,18 +37,22 @@ def check_sextant_task_pending(dbKey):
     return isPending
 
 def set_sextant_task_pending(dbKey, data={}):
+    currentUtcTime = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     cache = RedisClient.get(SextantCacheKey)
     if cache:
         cacheData = json.loads(cache)
         if dbKey in cacheData:
+            data['modifyTime'] = currentUtcTime
             cacheData[dbKey].update(data)
             RedisClient.set(SextantCacheKey, json.dumps(cacheData))
         else:
+            data['modifyTime'] = currentUtcTime
             cacheData[dbKey] = data
             RedisClient.set(SextantCacheKey, json.dumps(cacheData))
         
     else:
         cacheData = {}
+        data['modifyTime'] = currentUtcTime
         cacheData[dbKey] = data
         RedisClient.set(SextantCacheKey, json.dumps(cacheData))
 

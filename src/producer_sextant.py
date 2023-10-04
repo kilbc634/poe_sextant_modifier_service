@@ -4,11 +4,21 @@ from sextant_parser import sextant_data_to_stats_list, sextant_data_to_db_key, g
 from redis_lib import get_sextant_latest_time, check_sextant_task_pending, set_sextant_task_pending
 from datetime import datetime, timedelta
 import os
+import logging
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__file__)
+
 
 def run_schedule():
     # 從excel去load六分儀資料，並將資料解析成List格式
     excelFile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sextant_mapping.xlsx')
     sextantData = get_sextant_data_from_excel(excelFile)
+
+    logger.info('Start schedule when Excel Data loaded')
     for data in sextantData:
         # 遍歷list，產出第N筆資料對應的 statsList,dbKey
         statsList = sextant_data_to_stats_list(data)
@@ -16,6 +26,9 @@ def run_schedule():
 
         # check該任務是否已經在queue，如果是那就直接skip
         if check_sextant_task_pending(dbKey):
+            logger.info('Skip task produce when pending ({task})'.format(
+                task=dbKey)
+            )
             continue
 
         # 根據dbKey到DB取得最後更新時間
