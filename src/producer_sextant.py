@@ -51,8 +51,11 @@ def run_schedule():
         if doTask:
             task = trade_sextant_task.apply_async(args=[statsList, dbKey], queue=QueueTrade)
             set_sextant_task_pending(dbKey, data={
-                'taskId': task['id']
+                'taskId': task.id
             })
+            logger.info('Task produce with ({task})'.format(
+                task=dbKey)
+            )
 
 
 
