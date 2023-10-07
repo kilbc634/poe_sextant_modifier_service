@@ -56,7 +56,7 @@ def sextant_price_get_by_copy_text():
     
     # 從copy文字取出sextant詞墜的描述
     matches = re.findall(r'.*\(enchant\)\n', copyText)
-    sextantText = ''.join(matches).replace(' (enchant)\n', '\n')
+    sextantText = ''.join(matches).replace(' (enchant)\n', '\n').strip()
     # 將次數的部分做調整
     # 如果該數字介於1~4之間，則將這個字串中的數字替換成"3"
     # 如果該數字介於5~16之間，則將這個字串中的數字替換成"15"
