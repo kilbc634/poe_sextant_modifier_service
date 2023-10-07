@@ -62,9 +62,9 @@ def sextant_price_get_by_copy_text():
     # 如果該數字介於5~16之間，則將這個字串中的數字替換成"15"
     usesNum = re.findall(r'(\d+) uses remaining', sextantText)[0]
     usesInt = int(usesNum)
-    if 1 <= usesNum <= 4:
+    if 1 <= usesInt <= 4:
         replaceNum = '3'
-    elif 5 <= usesNum <= 16:
+    elif 5 <= usesInt <= 16:
         replaceNum = '15'
     sextantText = sextantText.replace(f'{usesNum} uses remaining', f'{replaceNum} uses remaining')
 
