@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from sextant_parser import get_sextant_data_from_excel, sextant_data_to_db_key
 import os
 import logging
