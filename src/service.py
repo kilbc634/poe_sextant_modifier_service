@@ -73,6 +73,8 @@ def sextant_price_get_by_copy_text():
     sextantData = get_sextant_data_from_excel(excelFile)
     
     priceDatas = []
+    print('search with -------')
+    print(sextantText)
     for data in sextantData:
         if data['sextant'] == sextantText:
             # 匹配成功，取得dbKey進行查詢
