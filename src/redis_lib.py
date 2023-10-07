@@ -8,7 +8,7 @@ import json
 RedisClient = redis.Redis(host=REDIS_HOST, port=6379, password=REDIS_AUTH, decode_responses=True)
 SextantCacheKey = 'sextantCache'
 
-def push_sextant_data(dbKey, priceList):
+def push_sextant_price(dbKey, priceList):
     currentUtcTime = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     pushValue = json.dumps({
         'price': priceList,
@@ -16,6 +16,16 @@ def push_sextant_data(dbKey, priceList):
     })
 
     RedisClient.lpush(dbKey, pushValue)
+
+def get_sextant_price(dbKey, logCount):
+    dataList = []
+    resultList = RedisClient.lrange(dbKey, 0, logCount - 1)
+    if resultList:
+        for result in resultList:
+            data = json.loads(result)
+            dataList.append(data)
+
+    return dataList
 
 def get_sextant_latest_time(dbKey):
     latestTime = ''

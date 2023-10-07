@@ -14,7 +14,7 @@ import subprocess
 import os
 from sextant_trade_api import search_with_stats, fetch_with_ids
 import traceback
-from redis_lib import push_sextant_data, del_sextant_task_pending
+from redis_lib import push_sextant_price, del_sextant_task_pending
 
 # 创建一个 Celery 实例
 worker = Celery('worker', broker=BROKER_URL)
@@ -48,7 +48,7 @@ def trade_sextant_task(statsList, dbKey):
             priceList=str(priceList)
         ))
         
-        push_sextant_data(dbKey, priceList)
+        push_sextant_price(dbKey, priceList)
 
         logger.info('save price data in --> {dbKey}'.format(
             dbKey=dbKey
