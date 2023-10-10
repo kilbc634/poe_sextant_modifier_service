@@ -7,6 +7,7 @@ import json
 
 RedisClient = redis.Redis(host=REDIS_HOST, port=6379, password=REDIS_AUTH, decode_responses=True)
 SextantCacheKey = 'sextantCache'
+CurrencyOverviewKey = 'currencyOverview'
 
 def push_sextant_price(dbKey, priceList):
     currentUtcTime = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -72,3 +73,23 @@ def del_sextant_task_pending(dbKey):
         cacheData = json.loads(cache)
         cacheData.pop(dbKey, None)
         RedisClient.set(SextantCacheKey, json.dumps(cacheData))
+
+def get_currency_overview():
+    currencyData = RedisClient.get(CurrencyOverviewKey)
+    if currencyData:
+        currencyData = json.loads(currencyData)
+
+    return currencyData
+
+def update_currency_overview(data):
+    currentUtcTime = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    data['modifyTime'] = currentUtcTime
+
+    currencyData = RedisClient.get(CurrencyOverviewKey)
+    if currencyData:
+        currencyData = json.loads(currencyData)
+        currencyData.update(data)
+    else:
+        currencyData = data
+
+    RedisClient.set(CurrencyOverviewKey, json.dumps(currencyData))

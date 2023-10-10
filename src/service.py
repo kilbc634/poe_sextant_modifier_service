@@ -10,7 +10,53 @@ logging.basicConfig(
 logger = logging.getLogger(__file__)
 import time
 import re
-from redis_lib import get_sextant_price
+from redis_lib import get_sextant_price, get_currency_overview, update_currency_overview
+import requests
+from datetime import datetime, timedelta
+
+
+def update_currency_overview_via_api():
+    logger.info('Will get currency overview by ninja API')
+    resp = request.get('https://poe.ninja/api/data/currencyoverview?league=Ancestor&type=Currency')
+    currencyOverview = resp.json()
+
+    priceAsChaos = {}
+    for detail in currencyOverview['currencyDetails']:
+        name = detail['name']
+        tradeId = detail['tradeId']
+
+        for line in currencyOverview['lines']:
+            if name == line['currencyTypeName']:
+                chaosValue = line['receive']['value']
+                priceAsChaos[tradeId] = chaosValue
+
+    update_currency_overview({'priceAsChaos': priceAsChaos})
+    logger.info('Updated currency overview by ninja API')
+
+def list_currency_price_as_chaos():
+    data = get_currency_overview()
+
+    doUpdateFirst = False
+    if data:
+        latestTime = data['modifyTime']
+        latestTime = datetime.strptime(latestTime, '%Y-%m-%d %H:%M:%S')
+        nowTime = datetime.utcnow()
+        
+        # 如果當前時間和最後更新時間相差1hr以上，則自動更新數據
+        if (nowTime - latestTime) > timedelta(hours=1):
+            doUpdateFirst = True
+
+    # 如果沒有數據
+    else:
+        doUpdateFirst = True
+
+    if doUpdateFirst:
+        update_currency_overview_via_api()
+        data = get_currency_overview()
+
+    priceAsChaos = data['priceAsChaos']
+
+    return priceAsChaos
 
 
 Service = Flask('Service')
@@ -80,6 +126,15 @@ def sextant_price_get_by_copy_text():
             # 匹配成功，取得dbKey進行查詢
             dbKey = sextant_data_to_db_key(data)
             priceDatas = get_sextant_price(dbKey, logCount)
+
+    # 為每個price資料都加上 asChaos 欄位
+    chaosPrice = list_currency_price_as_chaos()
+    for d in priceDatas:
+        for p in d['price']:
+            amount = p['amount']
+            currency = p['currency']
+            asChaos = amount * chaosPrice[currency]
+            p['asChaos'] = asChaos
 
     response = jsonify(priceDatas)
 

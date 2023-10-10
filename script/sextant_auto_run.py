@@ -126,11 +126,12 @@ def check_price_if_sell(itemText):
             'logCount': 1
         }
     )
-    avgPrice = resp.json()[0]['avgPriceAsChaos']
+    priceList = resp.json()[0]['price']
+    # 遍歷 priceList 的 asChaos 欄位，計算 avg
 
     # 價位大於特定數字才進行擺賣
-    if avgPrice >= 6:
-        ifSell = True
+    # if avgPrice >= 6:
+    #     ifSell = True
 
     return ifSell
 
