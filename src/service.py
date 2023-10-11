@@ -22,12 +22,13 @@ def update_currency_overview_via_api():
     priceAsChaos = {}
     for detail in currencyOverview['currencyDetails']:
         name = detail['name']
-        tradeId = detail['tradeId']
+        if 'tradeId' in detail:
+            tradeId = detail['tradeId']
 
-        for line in currencyOverview['lines']:
-            if name == line['currencyTypeName']:
-                chaosValue = line['receive']['value']
-                priceAsChaos[tradeId] = chaosValue
+            for line in currencyOverview['lines']:
+                if name == line['currencyTypeName']:
+                    chaosValue = line['receive']['value']
+                    priceAsChaos[tradeId] = chaosValue
 
     update_currency_overview({'priceAsChaos': priceAsChaos})
     logger.info('Updated currency overview by ninja API')
