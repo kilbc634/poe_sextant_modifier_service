@@ -20,6 +20,7 @@ def update_currency_overview_via_api():
     currencyOverview = resp.json()
 
     priceAsChaos = {}
+    priceAsChaos['chaos'] = 1.0
     for detail in currencyOverview['currencyDetails']:
         name = detail['name']
         if 'tradeId' in detail:
