@@ -8,7 +8,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__file__)
-import time
 import re
 from redis_lib import get_sextant_price, get_currency_overview, update_currency_overview
 import requests
@@ -17,7 +16,7 @@ from datetime import datetime, timedelta
 
 def update_currency_overview_via_api():
     logger.info('Will get currency overview by ninja API')
-    resp = request.get('https://poe.ninja/api/data/currencyoverview?league=Ancestor&type=Currency')
+    resp = requests.get('https://poe.ninja/api/data/currencyoverview?league=Ancestor&type=Currency')
     currencyOverview = resp.json()
 
     priceAsChaos = {}
