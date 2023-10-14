@@ -15,6 +15,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__file__)
 import re
+import numpy as np
+from datetime import datetime
 
 
 Ahk = AHK(executable_path=AHK_EXE)
@@ -25,9 +27,11 @@ JsonFile = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'position.js
 if os.path.exists(JsonFile):
     with open(JsonFile, 'r', encoding='utf-8') as file:
         Pos = json.load(file)
+    logger.info('Loaded settings success')
 else:
     with open(JsonFile, 'w') as file:
         json.dump(Pos, file)
+    logger.info('Not found setting, init setting file')
 
 PosList = ['sextant', 'voidstone', 'stash', 'compass', 'selltab', 'inventory', 'maintab']
 # 位置.六分儀
@@ -80,6 +84,8 @@ def update_position(positionName, positionXY):
     Pos[positionName] = positionXY
     with open(JsonFile, 'w') as file:
         json.dump(Pos, file)
+    
+    logger.info(f'Set position [ {positionName} ] is {str(positionXY)}')
 
 def reset_all_position():
     global Pos
@@ -93,8 +99,9 @@ def copy_item_to_text():
     
     Ahk.set_clipboard('')
     Ahk.send('^c')
+    time.sleep(0.1)
     Ahk.send('^c')
-    Ahk.send('^c')
+    time.sleep(0.1)
 
     itemText = Ahk.get_clipboard()
     Ahk.set_clipboard(clipboardText)
@@ -117,25 +124,74 @@ def get_compass_stack_size(itemText):
 
     return stackSize
 
+def clip_sextant_quick_name(itemText):
+    itemText = itemText.replace('\r\n', '\n')
+    matches = re.findall(r'.*\(enchant\)\n', itemText)
+    firstEnchantLine = matches[0]
+    quickName = firstEnchantLine.replace(' (enchant)\n', '').strip()
+    
+    return quickName
+
 def check_price_if_sell(itemText):
     ifSell = False
+    logger.info('will check price for -->\n' + itemText)
 
     resp = requests.post(SERVICE_HOST + 'sextant/price/getByCopyText',
         json = {
             'copyText': itemText.replace('\r\n', '\n'),
             'logCount': 1
         }
-    )
-    priceList = resp.json()[0]['price']
-    # 遍歷 priceList 的 asChaos 欄位，計算 avg
+    ).json()
 
-    # 價位大於特定數字才進行擺賣
-    # if avgPrice >= 6:
-    #     ifSell = True
+    if len(resp) >= 1:
+        priceList = resp[0]['price']
+
+        # 遍歷 priceList 的 asChaos 欄位，計算 avg
+        numberList = []
+        for price in priceList:
+            numberList.append(price['asChaos'])
+        logger.info('get price -->\n' + str(numberList))
+
+        # 先過濾掉極值，排除掉0.5倍標準差之外值
+        median = np.median(numberList)
+        std = np.std(numberList)
+        threshold = 2
+        filteredList = [x for x in numberList if abs(x - median) <= threshold * std]
+        logger.info('filteredList -->\n' + str(filteredList))
+
+        # 取價位平均值
+        avgPrice = np.mean(filteredList)
+        logger.info(f'avg price --> {str(avgPrice)}')
+
+        # 價位大於特定數字才進行擺賣
+        if avgPrice >= 5.0:
+            ifSell = True
+            logger.info(f'price is good, you can sell it')
+
+    else:
+        logger.warning('Check sextant price is Non-Data, skip it')
 
     return ifSell
 
+def ctrl_click():
+    Ahk.key_down('Ctrl')
+    time.sleep(0.2)
+    Ahk.click()
+    time.sleep(0.1)
+    Ahk.key_up('Ctrl')
 
+StopSignal = False
+def check_stop_signal():
+    global StopSignal
+    if StopSignal == True:
+        StopSignal = False
+        raise RuntimeError('Check the STOP signal, will stop script')
+
+
+# bind with F11
+def end_auto_run():
+    global StopSignal
+    StopSignal = True
 
 # bind with F9
 def position_setting():
@@ -177,11 +233,11 @@ def position_setting():
             else:
                 positionName = PosList[positionId]
     except Exception as e:
+        traceback.print_exc()
         Ahk.msg_box(
             text='Invalid ID',
             title='Error'
         )
-        traceback.print_exc()
 
     if positionName:
         update_position(positionName, currentPosition)
@@ -189,6 +245,8 @@ def position_setting():
 
 # bind with F10
 def start_auto_run():
+    if StopSignal == True:
+        return
     if check_window_active() == False:
         return
     if check_position_ready() == False:
@@ -198,87 +256,149 @@ def start_auto_run():
         )
         return
 
-    # (停留在通貨頁)
-    # 1. 移動到 ${位置.六分儀}，確認六分儀剩餘數量
-    Ahk.mouse_move(x = Pos['sextant']['x'], y = Pos['sextant']['y'], speed=10)
-    sextantText = copy_item_to_text()
-    sextantCount = get_sextant_stack_size(sextantText)
-    # 2. 右鍵
-    Ahk.click(button='R')
-    time.sleep(0.3)
-    # 3. 按G
-    Ahk.send('g')
-    time.sleep(0.5)
-    # 4. 移動到 ${位置.守望石}
-    Ahk.mouse_move(x = Pos['voidstone']['x'], y = Pos['voidstone']['y'], speed=10)
-    # 5. 左鍵
-    Ahk.click()
-    time.sleep(0.5)
-    # 6. 查價func -> ${有價 / 無價}
-    voidstoneText = copy_item_to_text()
-    doSell = check_price_if_sell(voidstoneText)
-    # 7. 按ESC
-    Ahk.send('Esc')
-    time.sleep(0.5)
-    # 8. 移動到 ${位置.倉庫}
-    Ahk.mouse_move(x = Pos['stash']['x'], y = Pos['stash']['y'], speed=10)
-    # 9. 左鍵
-    Ahk.click()
-    time.sleep(1)
-    # ( 無價，則在這裡結束 )
-    # 10.  if 有價，則追加以下步驟
-    if doSell:
-        # 11. 移動到 ${位置.羅盤}，確認羅盤剩餘數量
-        Ahk.mouse_move(x = Pos['compass']['x'], y = Pos['compass']['y'], speed=10)
-        compassText = copy_item_to_text()
-        compassCount = get_compass_stack_size(compassText)
-        # 12. 右鍵
-        Ahk.click(button='R')
-        time.sleep(0.3)
-        # 13. 按G
-        Ahk.send('g')
-        time.sleep(0.5)
-        # 14. 移動到 ${位置.守望石}
-        Ahk.mouse_move(x = Pos['voidstone']['x'], y = Pos['voidstone']['y'], speed=10)
-        # 15. 左鍵
-        Ahk.click()
-        time.sleep(1)
-        # 16. 按ESC
-        Ahk.send('Esc')
-        time.sleep(0.5)
-        # 17. 移動到 ${位置.倉庫}
-        Ahk.mouse_move(x = Pos['stash']['x'], y = Pos['stash']['y'], speed=10)
-        # 18. 左鍵
-        Ahk.click()
-        time.sleep(1)
-        # 19. 移動到 ${位置.SELL頁籤}
-        Ahk.mouse_move(x = Pos['selltab']['x'], y = Pos['selltab']['y'], speed=10)
-        # 20. 左鍵
-        Ahk.click()
-        time.sleep(2)
-        # 21. 移動到 ${位置.背包}
-        Ahk.mouse_move(x = Pos['inventory']['x'], y = Pos['inventory']['y'], speed=10)
-        # 22. 左鍵
-        Ahk.click()
-        time.sleep(0.5)
-        # 23. 按Ctrl+左鍵，確認當前位置沒有物品
-        Ahk.send('^Lbutton')
-        time.sleep(0.2)
-        Ahk.send('^Lbutton')
-        time.sleep(1)
-        inventoryText = copy_item_to_text()
-        if inventoryText:
-            raise RuntimeError('inventory item not clear')
-        # 24. 移動到 ${位置.MAIN頁籤}
-        Ahk.mouse_move(x = Pos['maintab']['x'], y = Pos['maintab']['y'], speed=10)
-        # 25. 左鍵
-        Ahk.click()
-        time.sleep(1)
-        # ( 追加步驟結束 )
+    # 建立一個report，用來存放有價物品list
+    sellList = {}
+
+    currentTime = datetime.now().strftime('%Y%m%d-%H%M%S')
+    fileName = f'sextent_{currentTime}.txt'
+    reportFile = os.path.join(os.path.dirname(os.path.abspath(__file__)), fileName)
+    with open(reportFile, 'w') as file:
+        file.write('Sextant Store Sell List\n-------------------------------------')
+
+    Ahk.show_info_traytip(
+        title='Sextant Auto Run',
+        text='will start auto run after 3 sec'
+    )
+    time.sleep(3)
+    logger.info('Start auto run')
+
+    while True:
+        try:
+            # (停留在通貨頁)
+            check_stop_signal()
+            # 1. 移動到 ${位置.六分儀}，確認六分儀剩餘數量
+            Ahk.mouse_move(x = Pos['sextant']['x'], y = Pos['sextant']['y'], speed=10)
+            sextantText = copy_item_to_text()
+            sextantCount = get_sextant_stack_size(sextantText)
+            if sextantCount < 10:
+                raise RuntimeError('sextant count less than 10')
+            # 2. 右鍵
+            check_stop_signal()
+            Ahk.click(button='R')
+            time.sleep(0.3)
+            # 3. 按G
+            Ahk.send('g')
+            time.sleep(0.5)
+            # 4. 移動到 ${位置.守望石}
+            Ahk.mouse_move(x = Pos['voidstone']['x'], y = Pos['voidstone']['y'], speed=10)
+            # 5. 左鍵
+            check_stop_signal()
+            Ahk.click()
+            time.sleep(0.5)
+            # 6. 查價func -> ${有價 / 無價}
+            voidstoneText = copy_item_to_text()
+            doSell = check_price_if_sell(voidstoneText)
+            time.sleep(2)
+            # 7. 按ESC
+            Ahk.key_press('Escape')
+            time.sleep(0.5)
+            # 8. 移動到 ${位置.倉庫}
+            Ahk.mouse_move(x = Pos['stash']['x'], y = Pos['stash']['y'], speed=10)
+            # 9. 左鍵
+            check_stop_signal()
+            Ahk.click()
+            time.sleep(1)
+            # ( 無價，則在這裡結束 )
+            # 10.  if 有價，則追加以下步驟
+            if doSell:
+                # 11. 移動到 ${位置.羅盤}，確認羅盤剩餘數量
+                Ahk.mouse_move(x = Pos['compass']['x'], y = Pos['compass']['y'], speed=10)
+                compassText = copy_item_to_text()
+                compassCount = get_compass_stack_size(compassText)
+                if compassCount < 3:
+                    raise RuntimeError('compass count less than 10')
+                # 12. 右鍵
+                check_stop_signal()
+                Ahk.click(button='R')
+                time.sleep(0.3)
+                # 13. 按G
+                Ahk.send('g')
+                time.sleep(0.5)
+                # 14. 移動到 ${位置.守望石}
+                Ahk.mouse_move(x = Pos['voidstone']['x'], y = Pos['voidstone']['y'], speed=10)
+                # 15. 左鍵
+                check_stop_signal()
+                Ahk.click()
+                time.sleep(1)
+                # 16. 按ESC
+                Ahk.key_press('Escape')
+                time.sleep(0.5)
+                # 17. 移動到 ${位置.倉庫}
+                Ahk.mouse_move(x = Pos['stash']['x'], y = Pos['stash']['y'], speed=10)
+                # 18. 左鍵
+                check_stop_signal()
+                Ahk.click()
+                time.sleep(1)
+                # 19. 移動到 ${位置.SELL頁籤}
+                Ahk.mouse_move(x = Pos['selltab']['x'], y = Pos['selltab']['y'], speed=10)
+                # 20. 左鍵
+                check_stop_signal()
+                Ahk.click()
+                time.sleep(1)
+                # 21. 移動到 ${位置.背包}
+                Ahk.mouse_move(x = Pos['inventory']['x'], y = Pos['inventory']['y'], speed=10)
+                # 22. 左鍵
+                check_stop_signal()
+                Ahk.click()
+                time.sleep(0.5)
+                # 23. 按Ctrl+左鍵，確認當前位置沒有物品
+                check_stop_signal()
+                ctrl_click()
+                time.sleep(1)
+                inventoryText = copy_item_to_text()
+                if inventoryText:
+                    raise RuntimeError('inventory item not clear')
+                # 24. 移動到 ${位置.MAIN頁籤}
+                Ahk.mouse_move(x = Pos['maintab']['x'], y = Pos['maintab']['y'], speed=10)
+                # 25. 左鍵
+                check_stop_signal()
+                Ahk.click()
+                time.sleep(1)
+                # ( 追加步驟結束 )
+                logger.info('save compass in store')
+
+                # 將有價物統計進report
+                quickName = clip_sextant_quick_name(voidstoneText)
+                if quickName in sellList:
+                    sellList[quickName] = sellList[quickName] + 1
+                else:
+                    sellList[quickName] = 1
+
+        except Exception as e:
+            traceback.print_exc()
+            break
+
+    # 將report寫入檔案
+    reportText = '\n'
+    for key in sellList.keys():
+        lineText = '{name} - {count}\n'.format(
+            name=key,
+            count=str(sellList[key])
+        )
+        reportText = reportText + lineText
+
+    with open(reportFile, 'a') as file:
+        file.write(reportText)
+
+    Ahk.msg_box(
+        text=reportText,
+        title='Auto run stop'
+    )
 
 
 Ahk.add_hotkey('F9', callback=position_setting)
 Ahk.add_hotkey('F10', callback=start_auto_run)
+Ahk.add_hotkey('F11', callback=end_auto_run)
 
 
 if __name__ == "__main__":
@@ -287,4 +407,5 @@ if __name__ == "__main__":
         title='Sextant Auto Run',
         text='script is ready'
     )
+    logger.info('Script is ready')
     Ahk.block_forever()
