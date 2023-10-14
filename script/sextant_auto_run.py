@@ -126,8 +126,8 @@ def get_compass_stack_size(itemText):
 
 def clip_sextant_quick_name(itemText):
     itemText = itemText.replace('\r\n', '\n')
-    matches = re.findall(r'.*\(enchant\)\n', itemText)
-    firstEnchantLine = matches[0]
+    match = re.findall(r'.*\(enchant\)\n', itemText)
+    firstEnchantLine = match[0]
     quickName = firstEnchantLine.replace(' (enchant)\n', '').strip()
     
     return quickName
@@ -395,10 +395,40 @@ def start_auto_run():
         title='Auto run stop'
     )
 
+SellItemNote = ''
+# bind with "[" key
+def sell_item_sampling():
+    global SellItemNote
+    compassText = copy_item_to_text()
+    pattern = r"Item Class: Stackable Currency\r\nRarity: Normal\r\nCharged Compass\r\n(?:.*\r\n)*?Note: (.*)"
+    match = re.search(pattern, compassText)
+    if match:
+        SellItemNote = match.group(1)
+
+# bind with "]" key
+def sell_item_same():
+    compassText = copy_item_to_text()
+    if 'Note: ' in compassText:
+        return
+
+    Ahk.click(button='R')
+    time.sleep(0.2)
+
+    clipboardText = Ahk.get_clipboard()
+
+    Ahk.set_clipboard(SellItemNote)
+    Ahk.send('^v')
+    time.sleep(0.2)
+    Ahk.key_press('Enter')
+
+    Ahk.set_clipboard(clipboardText)
+
 
 Ahk.add_hotkey('F9', callback=position_setting)
 Ahk.add_hotkey('F10', callback=start_auto_run)
 Ahk.add_hotkey('F11', callback=end_auto_run)
+Ahk.add_hotkey('[', callback=sell_item_sampling)
+Ahk.add_hotkey(']', callback=sell_item_same)
 
 
 if __name__ == "__main__":
