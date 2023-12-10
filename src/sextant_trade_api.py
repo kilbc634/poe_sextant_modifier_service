@@ -34,7 +34,7 @@ def search_with_stats(statsList):
         logger.info('trade search for --> {statsList}'.format(
             statsList=str(statsList)
         ))
-        resp = session.post('https://www.pathofexile.com/api/trade/search/Ancestor', json={
+        resp = session.post('https://www.pathofexile.com/api/trade/search/Affliction', json={
             "query": {
                 "status": {
                     "option": "online"
