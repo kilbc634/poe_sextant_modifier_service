@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 def update_currency_overview_via_api():
     logger.info('Will get currency overview by ninja API')
-    resp = requests.get('https://poe.ninja/api/data/currencyoverview?league=Ancestor&type=Currency')
+    resp = requests.get('https://poe.ninja/api/data/currencyoverview?league=Affliction&type=Currency')
     currencyOverview = resp.json()
 
     priceAsChaos = {}
