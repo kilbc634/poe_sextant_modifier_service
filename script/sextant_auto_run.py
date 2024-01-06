@@ -18,7 +18,12 @@ import re
 import numpy as np
 from datetime import datetime
 
-
+SELL_PRICE = 4.0
+SELL_PRICE_ELEVATED = 30.0
+SELL_CASE_NOTHING = 0
+SELL_CASE_NORMAL = 1
+SELL_CASE_ELEVATED = 2
+SELL_CASE_ELEVATED_OTHER = 3
 Ahk = AHK(executable_path=AHK_EXE)
 
 # 從當前路徑的json檔去load座標設定值資料，如果不存在會初始化一個新的
@@ -33,34 +38,7 @@ else:
         json.dump(Pos, file)
     logger.info('Not found setting, init setting file')
 
-PosList = ['sextant', 'voidstone', 'stash', 'compass', 'selltab', 'inventory', 'maintab']
-# 位置.六分儀
-# Pos['sextant']['x']
-# Pos['sextant']['y']
-
-# 位置.守望石
-# Pos['voidstone']['x']
-# Pos['voidstone']['y']
-
-# 位置.倉庫
-# Pos['stash']['x']
-# Pos['stash']['y']
-
-# 位置.羅盤
-# Pos['compass']['x']
-# Pos['compass']['y']
-
-# 位置.SELL頁籤
-# Pos['selltab']['x']
-# Pos['selltab']['y']
-
-# 位置.背包
-# Pos['inventory']['x']
-# Pos['inventory']['y']
-
-# 位置.MAIN頁籤
-# Pos['maintab']['x']
-# Pos['maintab']['y']
+PosList = ['sextant', 'voidstone', 'stash', 'compass', 'selltab', 'othertab', 'inventory', 'maintab']
 
 def check_window_active():
     isActive = False
@@ -132,13 +110,15 @@ def clip_sextant_quick_name(itemText):
     
     return quickName
 
-def check_price_if_sell(itemText):
-    ifSell = False
-    logger.info('will check price for -->\n' + itemText)
+def check_pricing_sell_case(itemText):
+    sellData = dict()
+    sellData['sellCase'] = SELL_CASE_NOTHING
+    sellData['sellPrice'] = None
 
+    logger.info('will check price for -->\n' + itemText)
     resp = requests.post(SERVICE_HOST + 'sextant/price/getByCopyText',
         json = {
-            'copyText': itemText.replace('\r\n', '\n'),
+            'copyText': itemText,
             'logCount': 1
         }
     ).json()
@@ -152,7 +132,7 @@ def check_price_if_sell(itemText):
             numberList.append(price['asChaos'])
         logger.info('get price -->\n' + str(numberList))
 
-        # 先過濾掉極值，排除掉0.5倍標準差之外值
+        # 先過濾掉極值，排除掉2倍標準差之外值
         median = np.median(numberList)
         std = np.std(numberList)
         threshold = 2
@@ -163,15 +143,23 @@ def check_price_if_sell(itemText):
         avgPrice = np.mean(filteredList)
         logger.info(f'avg price --> {str(avgPrice)}')
 
-        # 價位大於特定數字才進行擺賣
-        if avgPrice >= 5.0:
-            ifSell = True
-            logger.info(f'price is good, you can sell it')
+        # 價位大於特定數字才進行擺賣，如果是高尚六分儀則無條件擺賣
+        if '15 uses remaining' in itemText or '16 uses remaining' in itemText:
+            if avgPrice >= SELL_PRICE_ELEVATED:
+                sellData['sellCase'] = SELL_CASE_ELEVATED
+            else:
+                sellData['sellCase'] = SELL_CASE_ELEVATED_OTHER
+            logger.info('must sell it if Elevated')
+        elif avgPrice >= SELL_PRICE:
+            sellData['sellCase'] = SELL_CASE_NORMAL
+            logger.info('price is good, you can sell it')
+
+        sellData['sellPrice'] = avgPrice
 
     else:
         logger.warning('Check sextant price is Non-Data, skip it')
 
-    return ifSell
+    return sellData
 
 def ctrl_click():
     Ahk.key_down('Ctrl')
@@ -258,6 +246,7 @@ def start_auto_run():
 
     # 建立一個report，用來存放有價物品list
     sellList = {}
+    totalPrice = 0
 
     currentTime = datetime.now().strftime('%Y%m%d-%H%M%S')
     fileName = f'sextent_{currentTime}.txt'
@@ -297,7 +286,7 @@ def start_auto_run():
             time.sleep(0.5)
             # 6. 查價func -> ${有價 / 無價}
             voidstoneText = copy_item_to_text()
-            doSell = check_price_if_sell(voidstoneText)
+            sellData = check_pricing_sell_case(voidstoneText)
             time.sleep(2)
             # 7. 按ESC
             Ahk.key_press('Escape')
@@ -310,7 +299,7 @@ def start_auto_run():
             time.sleep(1)
             # ( 無價，則在這裡結束 )
             # 10.  if 有價，則追加以下步驟
-            if doSell:
+            if sellData['sellCase'] != SELL_CASE_NOTHING:
                 # 11. 移動到 ${位置.羅盤}，確認羅盤剩餘數量
                 Ahk.mouse_move(x = Pos['compass']['x'], y = Pos['compass']['y'], speed=10)
                 compassText = copy_item_to_text()
@@ -339,12 +328,20 @@ def start_auto_run():
                 check_stop_signal()
                 Ahk.click()
                 time.sleep(1)
-                # 19. 移動到 ${位置.SELL頁籤}
-                Ahk.mouse_move(x = Pos['selltab']['x'], y = Pos['selltab']['y'], speed=10)
-                # 20. 左鍵
-                check_stop_signal()
-                Ahk.click()
-                time.sleep(1)
+                if sellData['sellCase'] == SELL_CASE_NORMAL or sellData['sellCase'] == SELL_CASE_ELEVATED:
+                    # 19-1. 移動到 ${位置.SELL頁籤}
+                    Ahk.mouse_move(x = Pos['selltab']['x'], y = Pos['selltab']['y'], speed=10)
+                    # 20. 左鍵
+                    check_stop_signal()
+                    Ahk.click()
+                    time.sleep(1)
+                elif sellData['sellCase'] == SELL_CASE_ELEVATED_OTHER:
+                    # 19-2. 移動到 ${位置.OTHER頁籤}
+                    Ahk.mouse_move(x = Pos['othertab']['x'], y = Pos['othertab']['y'], speed=10)
+                    # 20. 左鍵
+                    check_stop_signal()
+                    Ahk.click()
+                    time.sleep(1)
                 # 21. 移動到 ${位置.背包}
                 Ahk.mouse_move(x = Pos['inventory']['x'], y = Pos['inventory']['y'], speed=10)
                 # 22. 左鍵
@@ -374,6 +371,8 @@ def start_auto_run():
                 else:
                     sellList[quickName] = 1
 
+                totalPrice = totalPrice + sellData['sellPrice']
+
         except Exception as e:
             traceback.print_exc()
             break
@@ -386,6 +385,9 @@ def start_auto_run():
             count=str(sellList[key])
         )
         reportText = reportText + lineText
+
+    totalMsg = '\nTotal Price : {totalPrice} chaos'.format(totalPrice=str(totalPrice))
+    reportText = reportText + totalMsg
 
     with open(reportFile, 'a') as file:
         file.write(reportText)
@@ -407,9 +409,9 @@ def sell_item_sampling():
 
 # bind with "]" key
 def sell_item_same():
-    compassText = copy_item_to_text()
-    if 'Note: ' in compassText:
-        return
+    # compassText = copy_item_to_text()
+    # if 'Note: ' in compassText:
+    #     return
 
     Ahk.click(button='R')
     time.sleep(0.2)
