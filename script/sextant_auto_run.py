@@ -88,7 +88,7 @@ def copy_item_to_text():
 
 def get_sextant_stack_size(itemText):
     stackSize = None
-    pattern = r"Item Class: Stackable Currency\r\nRarity: Currency\r\nAwakened Sextant\r\n(?:.*\r\n)*?Stack Size: (\d+)/\d+"
+    pattern = r"Item Class: Stackable Currency\r\nRarity: Currency\r\n(?:Awakened|Elevated) Sextant\r\n(?:.*\r\n)*?Stack Size: (\d+)/\d+"
     match = re.search(pattern, itemText)
     stackSize = int(match.group(1))
 
@@ -269,7 +269,7 @@ def start_auto_run():
             Ahk.mouse_move(x = Pos['sextant']['x'], y = Pos['sextant']['y'], speed=10)
             sextantText = copy_item_to_text()
             sextantCount = get_sextant_stack_size(sextantText)
-            if sextantCount < 10:
+            if sextantCount < 3:
                 raise RuntimeError('sextant count less than 10')
             # 2. 右鍵
             check_stop_signal()

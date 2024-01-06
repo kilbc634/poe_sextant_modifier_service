@@ -102,7 +102,7 @@ def sextant_price_get_by_copy_text():
         logCount = payload['logCount']
     
     # 從copy文字取出sextant詞墜的描述
-    itemText = itemText.replace('\r\n', '\n')
+    copyText = copyText.replace('\r\n', '\n')
     matches = re.findall(r'.*\(enchant\)\n', copyText)
     sextantText = ''.join(matches).replace(' (enchant)\n', '\n').strip()
     # 將次數的部分做調整
